@@ -1,0 +1,151 @@
+version: '3.8'
+services:
+  # MQ本地无法访问解决办法：broker.conf中的brokerIP1为你的主机ip
+  rmqnamesrv:
+    image: apache/rocketmq:5.1.0
+    restart: always
+    ports:
+      - "9876:9876"
+    environment:
+      JAVA_OPT_EXT: "-Duser.home=/home/rocketmq -Xms512M -Xmx512M -Xmn128m"
+    command: [ "sh","mqnamesrv" ]
+  rmqbroker:
+    image: apache/rocketmq:5.1.0
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+    volumes:
+      - ./conf/rocket-mq/broker.conf:/etc/rocketmq/broker.conf
+    environment:
+      JAVA_OPT_EXT: "-Duser.home=/home/rocketmq -Xms512M -Xmx512M -Xmn128m"
+    command: [ "sh","mqbroker","-c","/etc/rocketmq/broker.conf","-n","rmqnamesrv:9876" ]
+    depends_on:
+      - rmqnamesrv
+  rmqconsole:
+    image: registry.cn-hangzhou.aliyuncs.com/watt-public/rocketmq-console
+    restart: always
+    ports:
+      - "8098:8080"
+    environment:
+      JAVA_OPTS: "-Drocketmq.namesrv.addr=rmqnamesrv:9876 -Dcom.rocketmq.sendMessageWithVIPChannel=false"
+  rocketmq-dashboard:
+    image: apacherocketmq/rocketmq-dashboard:latest
+    restart: always
+    ports:
+      - "18010:8080"
+    environment:
+      JAVA_OPTS: "-Drocketmq.namesrv.addr=rmqnamesrv:9876 -Dcom.rocketmq.sendMessageWithVIPChannel=false"
+  redis:
+    restart: always
+    image: redis:7.4.1
+    ports:
+      - "6379:6379"
+    command: redis-server /etc/redis/redis.conf --requirepass siri@hwq@123
+    volumes:
+      - ./conf/redis/redis.conf:/etc/redis/redis.conf
+      - ./data/redis/data:/data
+  influxdb:
+    restart: always
+    image: registry.cn-hangzhou.aliyuncs.com/watt-public/influxdb:1.8.10
+    volumes:
+      - ./data/influxdb:/var/lib/influxdb
+    environment:
+      # - INFLUXDB_HTTP_AUTH_ENABLED=true
+      - INFLUXDB_ADMIN_USER=admin
+      - INFLUXDB_ADMIN_PASSWORD=siri@hwq@123
+      - INFLUXDB_DB=iot_data
+    ports:
+      - "8086:8086"
+  zookeeper:
+    image: zookeeper
+    restart: always
+    container_name: zookeeper
+    volumes:
+      - ./conf/zk-config:/conf
+      - ./data/zk-data:/data
+      - ./logs/zk-logs:/datalog
+    ports:
+      - "2181:2181"
+    command: bin/zkServer.sh start-foreground
+  nacos:
+    image: nacos/nacos-server:latest
+    container_name: nacos-standalone-mysql
+    environment:
+      - MODE=standalone
+      - PREFER_HOST_MODE=hostname
+      - SPRING_DATASOURCE_PLATFORM=mysql
+      - MYSQL_SERVICE_HOST=mysql
+      - MYSQL_SERVICE_DB_NAME=nacos
+      - MYSQL_SERVICE_PORT=3306
+      - MYSQL_SERVICE_USER=nacos
+      - MYSQL_SERVICE_PASSWORD=nacos
+      - MYSQL_SERVICE_DB_PARAM=characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useUnicode=true&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      - NACOS_AUTH_IDENTITY_KEY=2222
+      - NACOS_AUTH_IDENTITY_VALUE=2xxx
+      - NACOS_AUTH_TOKEN=SecretKey012345678901234567890123456789012345678901234567890123456789
+    volumes:
+      - ./logs/standalone-logs/:/home/nacos/logs
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: always
+  mysql:
+    image: mysql:8.0.26
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: siri@hwq@123
+      TZ: Asia/Shanghai
+      MYSQL_USER: nacos
+      MYSQL_PASSWORD: nacos
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./conf/my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./logs:/var/log/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "--password=siri@hwq@123" ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+  api-gateway:
+    image: registry.cn-hangzhou.aliyuncs.com/elecwatt-testing/api-gateway:dev
+    container_name: api-gateway
+    ports:
+      - "80:80"
+    depends_on:
+      - nacos
+    environment:
+      - spring.cloud.nacos.discovery.server-addr=10.144.76.192:8848
+      - spring.cloud.nacos.config.server-addr=10.144.76.192:8848
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      - POSTGRES_DB=mydb
+      - POSTGRES_USER=siri
+      - POSTGRES_PASSWORD=siri@hwq@123
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data/pg:/var/lib/postgresql/data
+      # 如果需要自定义配置文件，取消下面这行的注释
+      # - ./postgresql.conf:/etc/postgresql/postgresql.conf
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    # 如果使用自定义配置文件，取消下面这行的注释
+    # command: postgres -c config_file=/etc/postgresql/postgresql.conf

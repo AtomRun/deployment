@@ -1,0 +1,36 @@
+version: '3.8'
+services:
+  langu-bk:
+    image: crpi-kq8q9csnww8h09yh.cn-hangzhou.personal.cr.aliyuncs.com/langu-prod/langu-bk:latest
+    container_name: langu-bk
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/langu?useSSL=false&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useCompression=true&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=langu@siri123456
+      - SPRINGFOX_DOCUMENTATION_SWAGGER_UI_ENABLED=false
+    depends_on:
+      - mysql
+    restart: always
+  langu-fe:
+    image: crpi-kq8q9csnww8h09yh.cn-hangzhou.personal.cr.aliyuncs.com/langu-prod/langu-fe:latest
+    container_name: langu-fe
+    depends_on:
+      - langu-bk
+    ports:
+      - "80:80"
+    restart: always
+  mysql:
+    image: crpi-kq8q9csnww8h09yh.cn-hangzhou.personal.cr.aliyuncs.com/clee-public/mysql:8.0.33
+    container_name: mysql-langu
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d
+    ports:
+      - "30006:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: langu@siri123456
+      MYSQL_DATABASE: langu
+      MYSQL_COLLATION: utf8mb4_0900_ai_ci
+      TZ: Asia/Shanghai
+    restart: always
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
