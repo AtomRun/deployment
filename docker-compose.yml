@@ -86,6 +86,7 @@ services:
     volumes:
       - ./logs/standalone-logs/:/home/nacos/logs
     ports:
+      - "8080:8080"
       - "8848:8848"
       - "9848:9848"
     depends_on:
@@ -123,8 +124,8 @@ services:
     depends_on:
       - nacos
     environment:
-      - spring.cloud.nacos.discovery.server-addr=192.168.20.63:8848
-      - spring.cloud.nacos.config.server-addr=192.168.20.63:8848
+      - spring.cloud.nacos.discovery.server-addr=nacos:8848
+      - spring.cloud.nacos.config.server-addr=nacos:8848
   postgres:
     image: postgres:15
     container_name: postgres
