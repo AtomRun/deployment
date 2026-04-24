@@ -32,14 +32,14 @@ services:
     image: apacherocketmq/rocketmq-dashboard:latest
     restart: always
     ports:
-      - "18010:8080"
+      - "18010:8082"
     environment:
       JAVA_OPTS: "-Drocketmq.namesrv.addr=rmqnamesrv:9876 -Dcom.rocketmq.sendMessageWithVIPChannel=false"
   redis:
     restart: always
     image: redis:7.4.1
     ports:
-      - "6379:6379"
+      - "16379:6379"
     command: redis-server /etc/redis/redis.conf --requirepass siri@hwq@123
     volumes:
       - ./conf/redis/redis.conf:/etc/redis/redis.conf
@@ -65,7 +65,7 @@ services:
       - ./data/zk-data:/data
       - ./logs/zk-logs:/datalog
     ports:
-      - "2181:2181"
+      - "21811:2181"
     command: bin/zkServer.sh start-foreground
   nacos:
     image: nacos/nacos-server:latest
